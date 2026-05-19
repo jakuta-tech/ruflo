@@ -66,24 +66,11 @@ try {
     }
   }
 
-  // Tier 4: mock fallback (last resort — embeddings are not semantic)
-  if (!realEmbeddings) {
-    const embeddingsModule = await import('@claude-flow/embeddings').catch(() => null);
-    if (embeddingsModule?.createEmbeddingService) {
-      try {
-        const service = embeddingsModule.createEmbeddingService({ provider: 'mock' });
-        realEmbeddings = {
-          embed: async (text: string) => {
-            const result = await service.embed(text);
-            return Array.from(result.embedding);
-          },
-        };
-        embeddingServiceName = 'mock-fallback';
-      } catch {
-        // No embedding service available at all
-      }
-    }
-  }
+  // No Tier 4 mock fallback. If Tier 1 (agentic-flow) and Tier 3 (onnx)
+  // both failed to import, leave realEmbeddings null and let downstream
+  // code use the explicit hash-fallback path with a clear _embeddingNote
+  // in stats. Silently substituting mock embeddings would hide a missing
+  // production dependency from callers.
 } catch {
   // No embedding provider available, will use fallback
 }
@@ -206,7 +193,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 export const neuralTools: MCPTool[] = [
   {
     name: 'neural_train',
-    description: 'Train a neural model',
+    description: 'Train a neural model Use when nothing native trains on your workflow — Claude Code has no learning loop. Use to train SONA/MoE/EWC patterns from successful task outcomes; query via neural_predict before spawning agents. Off-path for one-shot work.',
     category: 'neural',
     inputSchema: {
       type: 'object',
@@ -323,7 +310,7 @@ export const neuralTools: MCPTool[] = [
   },
   {
     name: 'neural_predict',
-    description: 'Make predictions using a neural model',
+    description: 'Make predictions using a neural model Use when nothing native trains on your workflow — Claude Code has no learning loop. Use to train SONA/MoE/EWC patterns from successful task outcomes; query via neural_predict before spawning agents. Off-path for one-shot work.',
     category: 'neural',
     inputSchema: {
       type: 'object',
@@ -424,7 +411,7 @@ export const neuralTools: MCPTool[] = [
   },
   {
     name: 'neural_patterns',
-    description: 'Get or manage neural patterns',
+    description: 'Get or manage neural patterns Use when nothing native trains on your workflow — Claude Code has no learning loop. Use to train SONA/MoE/EWC patterns from successful task outcomes; query via neural_predict before spawning agents. Off-path for one-shot work.',
     category: 'neural',
     inputSchema: {
       type: 'object',
@@ -550,7 +537,7 @@ export const neuralTools: MCPTool[] = [
   },
   {
     name: 'neural_compress',
-    description: 'Compress neural model or embeddings',
+    description: 'Compress neural model or embeddings Use when nothing native trains on your workflow — Claude Code has no learning loop. Use to train SONA/MoE/EWC patterns from successful task outcomes; query via neural_predict before spawning agents. Off-path for one-shot work.',
     category: 'neural',
     inputSchema: {
       type: 'object',
@@ -662,7 +649,7 @@ export const neuralTools: MCPTool[] = [
   },
   {
     name: 'neural_status',
-    description: 'Get neural system status',
+    description: 'Get neural system status Use when nothing native trains on your workflow — Claude Code has no learning loop. Use to train SONA/MoE/EWC patterns from successful task outcomes; query via neural_predict before spawning agents. Off-path for one-shot work.',
     category: 'neural',
     inputSchema: {
       type: 'object',
@@ -709,7 +696,19 @@ export const neuralTools: MCPTool[] = [
         features: {
           hnsw: true,
           quantization: true,
-          flashAttention: false,
+          // #1770: probe the real loader instead of returning a literal false.
+          // Was hardcoded false, which contradicted hooks_intelligence_stats's
+          // simultaneous claim of `implementation: real-flash-attention`.
+          // The two surfaces now agree on a single source of truth.
+          flashAttention: await (async () => {
+            try {
+              // #1773 item 4 — flash-attention now lives in @claude-flow/neural
+              const { getFlashAttention } = await import('@claude-flow/neural');
+              return getFlashAttention() !== null;
+            } catch {
+              return false;
+            }
+          })(),
           reasoningBank: true,
         },
       };
@@ -717,7 +716,7 @@ export const neuralTools: MCPTool[] = [
   },
   {
     name: 'neural_optimize',
-    description: 'Optimize neural model performance',
+    description: 'Optimize neural model performance Use when nothing native trains on your workflow — Claude Code has no learning loop. Use to train SONA/MoE/EWC patterns from successful task outcomes; query via neural_predict before spawning agents. Off-path for one-shot work.',
     category: 'neural',
     inputSchema: {
       type: 'object',
